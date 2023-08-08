@@ -286,27 +286,28 @@ class LineAmounts:
 @dataclass
 class ModelIdentifier:
     model: str
-    keys: List[str] = dataclass_field(default_factory=list)
+    keys: List[str] = dataclass_field(default_factory=lambda: [])
 
+
+def model_identifier_field(model: str):
+    return dataclass_field(default_factory=lambda: ModelIdentifier(model=model))
 
 @dataclass
 class ModelIdentifiers:
-    user_ids: ModelIdentifier = ModelIdentifier(model="User")
-    user_emails: ModelIdentifier = ModelIdentifier(model="User")
-    user_external_references: ModelIdentifier = ModelIdentifier(model="User")
-    channel_slugs: ModelIdentifier = ModelIdentifier(model="Channel")
-    voucher_codes: ModelIdentifier = ModelIdentifier(model="Voucher")
-    warehouse_ids: ModelIdentifier = ModelIdentifier(model="Warehouse")
-    shipping_method_ids: ModelIdentifier = ModelIdentifier(model="ShippingMethod")
-    tax_class_ids: ModelIdentifier = ModelIdentifier(model="TaxClass")
-    order_external_references: ModelIdentifier = ModelIdentifier(model="Order")
-    variant_ids: ModelIdentifier = ModelIdentifier(model="ProductVariant")
-    variant_skus: ModelIdentifier = ModelIdentifier(model="ProductVariant")
-    variant_external_references: ModelIdentifier = ModelIdentifier(
-        model="ProductVariant"
-    )
-    gift_card_codes: ModelIdentifier = ModelIdentifier(model="GiftCard")
-    app_ids: ModelIdentifier = ModelIdentifier(model="App")
+    user_ids: ModelIdentifier = model_identifier_field("User")
+    user_emails: ModelIdentifier = model_identifier_field("User")
+    user_external_references: ModelIdentifier = model_identifier_field("User")
+    channel_slugs: ModelIdentifier = model_identifier_field("Channel")
+    voucher_codes: ModelIdentifier = model_identifier_field("Voucher")
+    warehouse_ids: ModelIdentifier = model_identifier_field("Warehouse")
+    shipping_method_ids: ModelIdentifier = model_identifier_field("ShippingMethod")
+    tax_class_ids: ModelIdentifier = model_identifier_field("TaxClass")
+    order_external_references: ModelIdentifier = model_identifier_field("Order")
+    variant_ids: ModelIdentifier = model_identifier_field("ProductVariant")
+    variant_skus: ModelIdentifier = model_identifier_field("ProductVariant")
+    variant_external_references: ModelIdentifier = model_identifier_field("ProductVariant")
+    gift_card_codes: ModelIdentifier = model_identifier_field("GiftCard")
+    app_ids: ModelIdentifier = model_identifier_field("App")
 
 
 class TaxedMoneyInput(BaseInputObjectType):

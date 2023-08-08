@@ -18,7 +18,8 @@ dist/
 # data
 /media/
 /node_modules/
-/static/
+/staticfiles/
+*.sqlite*
 
 # Environments
 .env

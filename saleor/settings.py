@@ -5,6 +5,7 @@ import os.path
 import warnings
 from datetime import timedelta
 from typing import List
+from environs import Env
 
 import dj_database_url
 import dj_email_url
@@ -30,22 +31,11 @@ from .core.schedules import initiated_sale_webhook_schedule
 
 django_stubs_ext.monkeypatch()
 
-
-def get_list(text):
-    return [item.strip() for item in text.split(",")]
-
-
-def get_bool_from_env(name, default_value):
-    if name in os.environ:
-        value = os.environ[name]
-        try:
-            return ast.literal_eval(value)
-        except ValueError as e:
-            raise ValueError("{} is an invalid value for {}".format(value, name)) from e
-    return default_value
+env = Env()
+env.read_env()
 
 
-DEBUG = get_bool_from_env("DEBUG", True)
+DEBUG = env.bool("DEBUG", True)
 
 SITE_ID = 1
 
@@ -62,25 +52,14 @@ MANAGERS = ADMINS
 
 APPEND_SLASH = False
 
-_DEFAULT_CLIENT_HOSTS = "localhost,127.0.0.1"
+ALLOWED_CLIENT_HOSTS = env.list("ALLOWED_CLIENT_HOSTS", ["localhost", "127.0.0.1"])
 
-ALLOWED_CLIENT_HOSTS = os.environ.get("ALLOWED_CLIENT_HOSTS")
-if not ALLOWED_CLIENT_HOSTS:
-    if DEBUG:
-        ALLOWED_CLIENT_HOSTS = _DEFAULT_CLIENT_HOSTS
-    else:
-        raise ImproperlyConfigured(
-            "ALLOWED_CLIENT_HOSTS environment variable must be set when DEBUG=False."
-        )
-
-ALLOWED_CLIENT_HOSTS = get_list(ALLOWED_CLIENT_HOSTS)
-
-INTERNAL_IPS = get_list(os.environ.get("INTERNAL_IPS", "127.0.0.1"))
+INTERNAL_IPS = env.list("INTERNAL_IPS", ["127.0.0.1"])
 
 # Maximum time in seconds Django can keep the database connections opened.
 # Set the value to 0 to disable connection persistence, database connections
 # will be closed after each request.
-DB_CONN_MAX_AGE = int(os.environ.get("DB_CONN_MAX_AGE", 600))
+DB_CONN_MAX_AGE = env.int("DB_CONN_MAX_AGE", 600)
 
 DATABASE_CONNECTION_DEFAULT_NAME = "default"
 # TODO: For local envs will be activated in separate PR.
@@ -89,17 +68,8 @@ DATABASE_CONNECTION_DEFAULT_NAME = "default"
 DATABASE_CONNECTION_REPLICA_NAME = "replica"
 
 DATABASES = {
-    DATABASE_CONNECTION_DEFAULT_NAME: dj_database_url.config(
-        default="postgres://saleor:saleor@localhost:5432/saleor",
-        conn_max_age=DB_CONN_MAX_AGE,
-    ),
-    DATABASE_CONNECTION_REPLICA_NAME: dj_database_url.config(
-        default="postgres://saleor:saleor@localhost:5432/saleor",
-        # TODO: We need to add read only user to saleor platform,
-        # and we need to update docs.
-        # default="postgres://saleor_read_only:saleor@localhost:5432/saleor",
-        conn_max_age=DB_CONN_MAX_AGE,
-    ),
+    DATABASE_CONNECTION_DEFAULT_NAME: env.dj_db_url("DATABASE_URL", "sqlite:///db.sqlite3"),
+    DATABASE_CONNECTION_REPLICA_NAME: env.dj_db_url("DATABASE_URL_REPLICA", "sqlite:///db2.sqlite3"),
 }
 
 DATABASE_ROUTERS = ["saleor.core.db_routers.PrimaryReplicaRouter"]
@@ -116,9 +86,9 @@ USE_TZ = True
 
 FORM_RENDERER = "django.forms.renderers.TemplatesSetting"
 
-EMAIL_URL = os.environ.get("EMAIL_URL")
-SENDGRID_USERNAME = os.environ.get("SENDGRID_USERNAME")
-SENDGRID_PASSWORD = os.environ.get("SENDGRID_PASSWORD")
+EMAIL_URL = env.str("EMAIL_URL", "")
+SENDGRID_USERNAME = env.str("SENDGRID_USERNAME", "")
+SENDGRID_PASSWORD = env.str("SENDGRID_PASSWORD", "")
 if not EMAIL_URL and SENDGRID_USERNAME and SENDGRID_PASSWORD:
     EMAIL_URL = (
         f"smtp://{SENDGRID_USERNAME}"
@@ -136,20 +106,20 @@ EMAIL_BACKEND: str = email_config.get("EMAIL_BACKEND", "")
 EMAIL_USE_TLS: bool = email_config.get("EMAIL_USE_TLS", False)
 EMAIL_USE_SSL: bool = email_config.get("EMAIL_USE_SSL", False)
 
-ENABLE_SSL = get_bool_from_env("ENABLE_SSL", False)
+ENABLE_SSL = env.bool("ENABLE_SSL", False)
 
 if ENABLE_SSL:
     SECURE_SSL_REDIRECT = not DEBUG
 
-DEFAULT_FROM_EMAIL: str = os.environ.get(
+DEFAULT_FROM_EMAIL: str = env.str(
     "DEFAULT_FROM_EMAIL", EMAIL_HOST_USER or "noreply@example.com"
 )
 
 MEDIA_ROOT: str = os.path.join(PROJECT_ROOT, "media")
-MEDIA_URL: str = os.environ.get("MEDIA_URL", "/media/")
+MEDIA_URL: str = env.str("MEDIA_URL", "/media/")
 
-STATIC_ROOT: str = os.path.join(PROJECT_ROOT, "static")
-STATIC_URL: str = os.environ.get("STATIC_URL", "/static/")
+STATIC_ROOT: str = os.path.join(PROJECT_ROOT, "staticfiles")
+STATIC_URL: str = env.str("STATIC_URL", "/static/")
 STATICFILES_DIRS = [
     ("images", os.path.join(PROJECT_ROOT, "saleor", "static", "images"))
 ]
@@ -185,7 +155,7 @@ TEMPLATES = [
 ]
 
 # Make this unique, and don't share it with anybody.
-SECRET_KEY = os.environ.get("SECRET_KEY")
+SECRET_KEY = env.str("SECRET_KEY", "")
 
 # Additional password algorithms that can be used by Saleor.
 # The first algorithm defined by Django is the preferred one; users not using the
@@ -200,9 +170,9 @@ if not SECRET_KEY and DEBUG:
     warnings.warn("SECRET_KEY not configured, using a random temporary key.")
     SECRET_KEY = get_random_secret_key()
 
-RSA_PRIVATE_KEY = os.environ.get("RSA_PRIVATE_KEY", None)
-RSA_PRIVATE_PASSWORD = os.environ.get("RSA_PRIVATE_PASSWORD", None)
-JWT_MANAGER_PATH = os.environ.get(
+RSA_PRIVATE_KEY = env.str("RSA_PRIVATE_KEY", None)
+RSA_PRIVATE_PASSWORD = env.str("RSA_PRIVATE_PASSWORD", None)
+JWT_MANAGER_PATH = env.str(
     "JWT_MANAGER_PATH", "saleor.core.jwt_manager.JWTManager"
 )
 
@@ -258,13 +228,13 @@ INSTALLED_APPS = [
     "phonenumber_field",
 ]
 
-ENABLE_DJANGO_EXTENSIONS = get_bool_from_env("ENABLE_DJANGO_EXTENSIONS", False)
+ENABLE_DJANGO_EXTENSIONS = env.bool("ENABLE_DJANGO_EXTENSIONS", False)
 if ENABLE_DJANGO_EXTENSIONS:
     INSTALLED_APPS += [
         "django_extensions",
     ]
 
-ENABLE_DEBUG_TOOLBAR = get_bool_from_env("ENABLE_DEBUG_TOOLBAR", False)
+ENABLE_DEBUG_TOOLBAR = env.bool("ENABLE_DEBUG_TOOLBAR", False)
 if ENABLE_DEBUG_TOOLBAR:
     # Ensure the graphiql debug toolbar is actually installed before adding it
     try:
@@ -395,7 +365,7 @@ AUTH_PASSWORD_VALIDATORS = [
     }
 ]
 
-DEFAULT_COUNTRY = os.environ.get("DEFAULT_COUNTRY", "US")
+DEFAULT_COUNTRY = env.str("DEFAULT_COUNTRY", "US")
 DEFAULT_DECIMAL_PLACES = 3
 DEFAULT_MAX_DIGITS = 12
 DEFAULT_CURRENCY_CODE_LENGTH = 3
@@ -418,61 +388,59 @@ PAYMENT_HOST = get_host
 
 PAYMENT_MODEL = "order.Payment"
 
-MAX_USER_ADDRESSES = int(os.environ.get("MAX_USER_ADDRESSES", 100))
+MAX_USER_ADDRESSES = env.int("MAX_USER_ADDRESSES", 100)
 
 TEST_RUNNER = "saleor.tests.runner.PytestTestRunner"
 
 
-PLAYGROUND_ENABLED = get_bool_from_env("PLAYGROUND_ENABLED", True)
+PLAYGROUND_ENABLED = env.bool("PLAYGROUND_ENABLED", True)
 
-ALLOWED_HOSTS = get_list(os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1"))
-ALLOWED_GRAPHQL_ORIGINS: List[str] = get_list(
-    os.environ.get("ALLOWED_GRAPHQL_ORIGINS", "*")
-)
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", ["localhost", "127.0.0.1"])
+ALLOWED_GRAPHQL_ORIGINS: List[str] = env.list("ALLOWED_GRAPHQL_ORIGINS", ["*"])
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # Amazon S3 configuration
 # See https://django-storages.readthedocs.io/en/latest/backends/amazon-S3.html
-AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
-AWS_LOCATION = os.environ.get("AWS_LOCATION", "")
-AWS_MEDIA_BUCKET_NAME = os.environ.get("AWS_MEDIA_BUCKET_NAME")
-AWS_MEDIA_CUSTOM_DOMAIN = os.environ.get("AWS_MEDIA_CUSTOM_DOMAIN")
-AWS_QUERYSTRING_AUTH = get_bool_from_env("AWS_QUERYSTRING_AUTH", False)
-AWS_QUERYSTRING_EXPIRE = get_bool_from_env("AWS_QUERYSTRING_EXPIRE", 3600)
-AWS_S3_CUSTOM_DOMAIN = os.environ.get("AWS_STATIC_CUSTOM_DOMAIN")
-AWS_S3_ENDPOINT_URL = os.environ.get("AWS_S3_ENDPOINT_URL", None)
-AWS_S3_REGION_NAME = os.environ.get("AWS_S3_REGION_NAME", None)
-AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
-AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME")
-AWS_DEFAULT_ACL = os.environ.get("AWS_DEFAULT_ACL", None)
-AWS_S3_FILE_OVERWRITE = get_bool_from_env("AWS_S3_FILE_OVERWRITE", True)
+AWS_ACCESS_KEY_ID = env.str("AWS_ACCESS_KEY_ID", "")
+AWS_LOCATION = env.str("AWS_LOCATION", "")
+AWS_MEDIA_BUCKET_NAME = env.str("AWS_MEDIA_BUCKET_NAME", "")
+AWS_MEDIA_CUSTOM_DOMAIN = env.str("AWS_MEDIA_CUSTOM_DOMAIN", "")
+AWS_QUERYSTRING_AUTH = env.bool("AWS_QUERYSTRING_AUTH", False)
+AWS_QUERYSTRING_EXPIRE = env.int("AWS_QUERYSTRING_EXPIRE", 3600)
+AWS_S3_CUSTOM_DOMAIN = env.str("AWS_STATIC_CUSTOM_DOMAIN", "")
+AWS_S3_ENDPOINT_URL = env.str("AWS_S3_ENDPOINT_URL", None)
+AWS_S3_REGION_NAME = env.str("AWS_S3_REGION_NAME", None)
+AWS_SECRET_ACCESS_KEY = env.str("AWS_SECRET_ACCESS_KEY", "")
+AWS_STORAGE_BUCKET_NAME = env.str("AWS_STORAGE_BUCKET_NAME", "")
+AWS_DEFAULT_ACL = env.str("AWS_DEFAULT_ACL", None)
+AWS_S3_FILE_OVERWRITE = env.bool("AWS_S3_FILE_OVERWRITE", True)
 
 # Google Cloud Storage configuration
 # See https://django-storages.readthedocs.io/en/latest/backends/gcloud.html
-GS_PROJECT_ID = os.environ.get("GS_PROJECT_ID")
-GS_BUCKET_NAME = os.environ.get("GS_BUCKET_NAME")
-GS_LOCATION = os.environ.get("GS_LOCATION", "")
-GS_CUSTOM_ENDPOINT = os.environ.get("GS_CUSTOM_ENDPOINT")
-GS_MEDIA_BUCKET_NAME = os.environ.get("GS_MEDIA_BUCKET_NAME")
-GS_AUTO_CREATE_BUCKET = get_bool_from_env("GS_AUTO_CREATE_BUCKET", False)
-GS_QUERYSTRING_AUTH = get_bool_from_env("GS_QUERYSTRING_AUTH", False)
-GS_DEFAULT_ACL = os.environ.get("GS_DEFAULT_ACL", None)
-GS_MEDIA_CUSTOM_ENDPOINT = os.environ.get("GS_MEDIA_CUSTOM_ENDPOINT", None)
-GS_EXPIRATION = timedelta(seconds=parse(os.environ.get("GS_EXPIRATION", "1 day")))
-GS_FILE_OVERWRITE = get_bool_from_env("GS_FILE_OVERWRITE", True)
+GS_PROJECT_ID = env.str("GS_PROJECT_ID", "")
+GS_BUCKET_NAME = env.str("GS_BUCKET_NAME", "")
+GS_LOCATION = env.str("GS_LOCATION", "")
+GS_CUSTOM_ENDPOINT = env.str("GS_CUSTOM_ENDPOINT", "")
+GS_MEDIA_BUCKET_NAME = env.str("GS_MEDIA_BUCKET_NAME", "")
+GS_AUTO_CREATE_BUCKET = env.bool("GS_AUTO_CREATE_BUCKET", False)
+GS_QUERYSTRING_AUTH = env.bool("GS_QUERYSTRING_AUTH", False)
+GS_DEFAULT_ACL = env.str("GS_DEFAULT_ACL", None)
+GS_MEDIA_CUSTOM_ENDPOINT = env.str("GS_MEDIA_CUSTOM_ENDPOINT", None)
+GS_EXPIRATION = timedelta(seconds=parse(env.str("GS_EXPIRATION", "1 day")))
+GS_FILE_OVERWRITE = env.bool("GS_FILE_OVERWRITE", True)
 
 # If GOOGLE_APPLICATION_CREDENTIALS is set there is no need to load OAuth token
 # See https://django-storages.readthedocs.io/en/latest/backends/gcloud.html
 if "GOOGLE_APPLICATION_CREDENTIALS" not in os.environ:
-    GS_CREDENTIALS = os.environ.get("GS_CREDENTIALS")
+    GS_CREDENTIALS = env.str("GS_CREDENTIALS", "")
 
 # Azure Storage configuration
 # See https://django-storages.readthedocs.io/en/latest/backends/azure.html
-AZURE_ACCOUNT_NAME = os.environ.get("AZURE_ACCOUNT_NAME")
-AZURE_ACCOUNT_KEY = os.environ.get("AZURE_ACCOUNT_KEY")
-AZURE_CONTAINER = os.environ.get("AZURE_CONTAINER")
-AZURE_SSL = os.environ.get("AZURE_SSL")
+AZURE_ACCOUNT_NAME = env.str("AZURE_ACCOUNT_NAME", "")
+AZURE_ACCOUNT_KEY = env.str("AZURE_ACCOUNT_KEY", "")
+AZURE_CONTAINER = env.str("AZURE_CONTAINER", "")
+AZURE_SSL = env.str("AZURE_SSL", "")
 
 if AWS_STORAGE_BUCKET_NAME:
     STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
@@ -505,30 +473,30 @@ AUTHENTICATION_BACKENDS = [
 
 # Expired checkouts settings - defines after what time checkouts will be deleted
 ANONYMOUS_CHECKOUTS_TIMEDELTA = timedelta(
-    seconds=parse(os.environ.get("ANONYMOUS_CHECKOUTS_TIMEDELTA", "30 days"))
+    seconds=parse(env.str("ANONYMOUS_CHECKOUTS_TIMEDELTA", "30 days"))
 )
 USER_CHECKOUTS_TIMEDELTA = timedelta(
-    seconds=parse(os.environ.get("USER_CHECKOUTS_TIMEDELTA", "90 days"))
+    seconds=parse(env.str("USER_CHECKOUTS_TIMEDELTA", "90 days"))
 )
 EMPTY_CHECKOUTS_TIMEDELTA = timedelta(
-    seconds=parse(os.environ.get("EMPTY_CHECKOUTS_TIMEDELTA", "6 hours"))
+    seconds=parse(env.str("EMPTY_CHECKOUTS_TIMEDELTA", "6 hours"))
 )
 
 # Exports settings - defines after what time exported files will be deleted
 EXPORT_FILES_TIMEDELTA = timedelta(
-    seconds=parse(os.environ.get("EXPORT_FILES_TIMEDELTA", "30 days"))
+    seconds=parse(env.str("EXPORT_FILES_TIMEDELTA", "30 days"))
 )
 
 # CELERY SETTINGS
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_BROKER_URL = (
-    os.environ.get("CELERY_BROKER_URL", os.environ.get("CLOUDAMQP_URL")) or ""
+    env.str("CELERY_BROKER_URL", env.str("CLOUDAMQP_URL", "")) or ""
 )
 CELERY_TASK_ALWAYS_EAGER = not CELERY_BROKER_URL
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
-CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", None)
+CELERY_RESULT_BACKEND = env.str("CELERY_RESULT_BACKEND", None)
 CELERY_TASK_ROUTES = {
     "saleor.plugins.webhook.tasks.observability_reporter_task": {
         "queue": "observability"
@@ -540,7 +508,7 @@ CELERY_TASK_ROUTES = {
 
 # Expire orders task setting
 BEAT_EXPIRE_ORDERS_AFTER_TIMEDELTA = timedelta(
-    seconds=parse(os.environ.get("BEAT_EXPIRE_ORDERS_AFTER_TIMEDELTA", "5 minutes"))
+    seconds=parse(env.str("BEAT_EXPIRE_ORDERS_AFTER_TIMEDELTA", "5 minutes"))
 )
 
 # Defines after how many seconds should the task triggered by the Celery beat
@@ -616,29 +584,26 @@ CELERY_BEAT_SCHEDULE = {
 CELERY_BEAT_MAX_LOOP_INTERVAL = 300  # 5 minutes
 
 EVENT_PAYLOAD_DELETE_PERIOD = timedelta(
-    seconds=parse(os.environ.get("EVENT_PAYLOAD_DELETE_PERIOD", "14 days"))
+    seconds=parse(env.str("EVENT_PAYLOAD_DELETE_PERIOD", "14 days"))
 )
 
 # Observability settings
-OBSERVABILITY_BROKER_URL = os.environ.get("OBSERVABILITY_BROKER_URL")
+OBSERVABILITY_BROKER_URL = env.str("OBSERVABILITY_BROKER_URL", "")
 OBSERVABILITY_ACTIVE = bool(OBSERVABILITY_BROKER_URL)
-OBSERVABILITY_REPORT_ALL_API_CALLS = get_bool_from_env(
+OBSERVABILITY_REPORT_ALL_API_CALLS = env.bool(
     "OBSERVABILITY_REPORT_ALL_API_CALLS", False
 )
-OBSERVABILITY_MAX_PAYLOAD_SIZE = int(
-    os.environ.get("OBSERVABILITY_MAX_PAYLOAD_SIZE", 25 * 1000)
-)
-OBSERVABILITY_BUFFER_SIZE_LIMIT = int(
-    os.environ.get("OBSERVABILITY_BUFFER_SIZE_LIMIT", 1000)
-)
-OBSERVABILITY_BUFFER_BATCH_SIZE = int(
-    os.environ.get("OBSERVABILITY_BUFFER_BATCH_SIZE", 100)
-)
+OBSERVABILITY_MAX_PAYLOAD_SIZE = env.int("OBSERVABILITY_MAX_PAYLOAD_SIZE", 25 * 1000)
+
+OBSERVABILITY_BUFFER_SIZE_LIMIT = env.int("OBSERVABILITY_BUFFER_SIZE_LIMIT", 1000)
+
+OBSERVABILITY_BUFFER_BATCH_SIZE = env.int("OBSERVABILITY_BUFFER_BATCH_SIZE", 100)
+
 OBSERVABILITY_REPORT_PERIOD = timedelta(
-    seconds=parse(os.environ.get("OBSERVABILITY_REPORT_PERIOD", "20 seconds"))
+    seconds=parse(env.str("OBSERVABILITY_REPORT_PERIOD", "20 seconds"))
 )
 OBSERVABILITY_BUFFER_TIMEOUT = timedelta(
-    seconds=parse(os.environ.get("OBSERVABILITY_BUFFER_TIMEOUT", "5 minutes"))
+    seconds=parse(env.str("OBSERVABILITY_BUFFER_TIMEOUT", "5 minutes"))
 )
 if OBSERVABILITY_ACTIVE:
     CELERY_BEAT_SCHEDULE["observability-reporter"] = {
@@ -654,23 +619,23 @@ if OBSERVABILITY_ACTIVE:
 
 # Change this value if your application is running behind a proxy,
 # e.g. HTTP_CF_Connecting_IP for Cloudflare or X_FORWARDED_FOR
-REAL_IP_ENVIRON = get_list(os.environ.get("REAL_IP_ENVIRON", "REMOTE_ADDR"))
+REAL_IP_ENVIRON = env.list("REAL_IP_ENVIRON", [])
 
 # Slugs for menus precreated in Django migrations
 DEFAULT_MENUS = {"top_menu_name": "navbar", "bottom_menu_name": "footer"}
 
 # Slug for channel precreated in Django migrations
-DEFAULT_CHANNEL_SLUG = os.environ.get("DEFAULT_CHANNEL_SLUG", "default-channel")
+DEFAULT_CHANNEL_SLUG = env.str("DEFAULT_CHANNEL_SLUG", "default-channel")
 
 # Set this to `True` if you want to create default channel, warehouse, product type and
 # category during migrations. It makes it easier for the users to create their first
 # product.
-POPULATE_DEFAULTS = get_bool_from_env("POPULATE_DEFAULTS", True)
+POPULATE_DEFAULTS = env.bool("POPULATE_DEFAULTS", True)
 
 
 #  Sentry
 sentry_sdk.utils.MAX_STRING_LENGTH = 4096
-SENTRY_DSN = os.environ.get("SENTRY_DSN")
+SENTRY_DSN = env.str("SENTRY_DSN", "")
 SENTRY_OPTS = {"integrations": [CeleryIntegration(), DjangoIntegration()]}
 
 
@@ -689,15 +654,14 @@ GRAPHQL_PAGINATION_LIMIT = 100
 GRAPHQL_MIDDLEWARE: List[str] = []
 
 # Set GRAPHQL_QUERY_MAX_COMPLEXITY=0 in env to disable (not recommended)
-GRAPHQL_QUERY_MAX_COMPLEXITY = int(
-    os.environ.get("GRAPHQL_QUERY_MAX_COMPLEXITY", 50000)
-)
+GRAPHQL_QUERY_MAX_COMPLEXITY = env.int("GRAPHQL_QUERY_MAX_COMPLEXITY", 50000)
+
 
 # Max number entities that can be requested in single query by Apollo Federation
 # Federation protocol implements no securities on its own part - malicious actor
 # may build a query that requests for potentially few thousands of entities.
 # Set FEDERATED_QUERY_MAX_ENTITIES=0 in env to disable (not recommended)
-FEDERATED_QUERY_MAX_ENTITIES = int(os.environ.get("FEDERATED_QUERY_MAX_ENTITIES", 100))
+FEDERATED_QUERY_MAX_ENTITIES = env.int("FEDERATED_QUERY_MAX_ENTITIES", 100)
 
 BUILTIN_PLUGINS = [
     "saleor.plugins.avatax.plugin.AvataxPlugin",
@@ -709,7 +673,6 @@ BUILTIN_PLUGINS = [
     "saleor.payment.gateways.braintree.plugin.BraintreeGatewayPlugin",
     "saleor.payment.gateways.razorpay.plugin.RazorpayGatewayPlugin",
     "saleor.payment.gateways.adyen.plugin.AdyenGatewayPlugin",
-    "saleor.payment.gateways.authorize_net.plugin.AuthorizeNetGatewayPlugin",
     "saleor.payment.gateways.np_atobarai.plugin.NPAtobaraiGatewayPlugin",
     "saleor.plugins.invoicing.plugin.InvoicingPlugin",
     "saleor.plugins.user_email.plugin.UserEmailPlugin",
@@ -752,12 +715,12 @@ if "JAEGER_AGENT_HOST" in os.environ:
         config={
             "sampler": {"type": "const", "param": 1},
             "local_agent": {
-                "reporting_port": os.environ.get(
+                "reporting_port": env.str(
                     "JAEGER_AGENT_PORT", jaeger_client.config.DEFAULT_REPORTING_PORT
                 ),
-                "reporting_host": os.environ.get("JAEGER_AGENT_HOST"),
+                "reporting_host": env.str("JAEGER_AGENT_HOST"),
             },
-            "logging": get_bool_from_env("JAEGER_LOGGING", False),
+            "logging": env.bool("JAEGER_LOGGING", False),
         },
         service_name="saleor",
         validate=True,
@@ -765,26 +728,26 @@ if "JAEGER_AGENT_HOST" in os.environ:
 
 
 # Some cloud providers (Heroku) export REDIS_URL variable instead of CACHE_URL
-REDIS_URL = os.environ.get("REDIS_URL")
+REDIS_URL = env.str("REDIS_URL", "")
 if REDIS_URL:
     CACHE_URL = os.environ.setdefault("CACHE_URL", REDIS_URL)
 CACHES = {"default": django_cache_url.config()}
-CACHES["default"]["TIMEOUT"] = parse(os.environ.get("CACHE_TIMEOUT", "7 days"))
+CACHES["default"]["TIMEOUT"] = parse(env.str("CACHE_TIMEOUT", "7 days"))
 
 JWT_EXPIRE = True
-JWT_TTL_ACCESS = timedelta(seconds=parse(os.environ.get("JWT_TTL_ACCESS", "5 minutes")))
+JWT_TTL_ACCESS = timedelta(seconds=parse(env.str("JWT_TTL_ACCESS", "5 minutes")))
 JWT_TTL_APP_ACCESS = timedelta(
-    seconds=parse(os.environ.get("JWT_TTL_APP_ACCESS", "5 minutes"))
+    seconds=parse(env.str("JWT_TTL_APP_ACCESS", "5 minutes"))
 )
-JWT_TTL_REFRESH = timedelta(seconds=parse(os.environ.get("JWT_TTL_REFRESH", "30 days")))
+JWT_TTL_REFRESH = timedelta(seconds=parse(env.str("JWT_TTL_REFRESH", "30 days")))
 
 
 JWT_TTL_REQUEST_EMAIL_CHANGE = timedelta(
-    seconds=parse(os.environ.get("JWT_TTL_REQUEST_EMAIL_CHANGE", "1 hour")),
+    seconds=parse(env.str("JWT_TTL_REQUEST_EMAIL_CHANGE", "1 hour")),
 )
 
 CHECKOUT_PRICES_TTL = timedelta(
-    seconds=parse(os.environ.get("CHECKOUT_PRICES_TTL", "1 hour"))
+    seconds=parse(env.str("CHECKOUT_PRICES_TTL", "1 hour"))
 )
 
 # The maximum SearchVector expression count allowed per index SQL statement
@@ -812,23 +775,23 @@ executor.SubscriberExecutionContext = PatchedSubscriberExecutionContext  # type:
 # Set None to route to the default queue, or a string value to use a separate one
 #
 # Queue name for update search vector
-UPDATE_SEARCH_VECTOR_INDEX_QUEUE_NAME = os.environ.get(
+UPDATE_SEARCH_VECTOR_INDEX_QUEUE_NAME = env.str(
     "UPDATE_SEARCH_VECTOR_INDEX_QUEUE_NAME", None
 )
 # Queue name for "async webhook" events
-WEBHOOK_CELERY_QUEUE_NAME = os.environ.get("WEBHOOK_CELERY_QUEUE_NAME", None)
+WEBHOOK_CELERY_QUEUE_NAME = env.str("WEBHOOK_CELERY_QUEUE_NAME", None)
 
 # Lock time for request password reset mutation per user (seconds)
 RESET_PASSWORD_LOCK_TIME = parse(
-    os.environ.get("RESET_PASSWORD_LOCK_TIME", "15 minutes")
+    env.str("RESET_PASSWORD_LOCK_TIME", "15 minutes")
 )
 
 # Lock time for request confirmation email mutation per user
 CONFIRMATION_EMAIL_LOCK_TIME = parse(
-    os.environ.get("CONFIRMATION_EMAIL_LOCK_TIME", "15 minutes")
+    env.str("CONFIRMATION_EMAIL_LOCK_TIME", "15 minutes")
 )
 
 # Time threshold to update user last_login when performing requests with OAUTH token.
 OAUTH_UPDATE_LAST_LOGIN_THRESHOLD = parse(
-    os.environ.get("OAUTH_UPDATE_LAST_LOGIN_THRESHOLD", "15 minutes")
+    env.str("OAUTH_UPDATE_LAST_LOGIN_THRESHOLD", "15 minutes")
 )
