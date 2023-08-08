@@ -619,7 +619,7 @@ if OBSERVABILITY_ACTIVE:
 
 # Change this value if your application is running behind a proxy,
 # e.g. HTTP_CF_Connecting_IP for Cloudflare or X_FORWARDED_FOR
-REAL_IP_ENVIRON = env.list("REAL_IP_ENVIRON", [])
+REAL_IP_ENVIRON = env.list("REAL_IP_ENVIRON", env.list("REMOTE_ADDR", ["127.0.0.1"]))
 
 # Slugs for menus precreated in Django migrations
 DEFAULT_MENUS = {"top_menu_name": "navbar", "bottom_menu_name": "footer"}
